@@ -9,30 +9,38 @@ function buildImmichCandidates(base) {
   const clean = buildImmichBase(base);
   if (!clean) return [];
 
-  const isFullPing = /\/api\/server-info\/ping$/i.test(clean) || /\/server-info\/ping$/i.test(clean);
+  const isFullPing =
+    /\/api\/server\/ping$/i.test(clean) ||
+    /\/api\/server-info\/ping$/i.test(clean) ||
+    /\/server-info\/ping$/i.test(clean);
   if (isFullPing) {
     return [clean];
   }
 
   const hasApiSuffix = /\/api$/i.test(clean);
   if (hasApiSuffix) {
-    return [
-      `${clean}/server-info/ping`,
-      `${clean}/server-info`,
-      `${clean}/ping`
-    ];
+    return [`${clean}/server/ping`, `${clean}/server-info/ping`, `${clean}/server-info`, `${clean}/ping`];
   }
 
-  return [
-    `${clean}/api/server-info/ping`,
-    `${clean}/server-info/ping`,
-    `${clean}/api/ping`,
-    `${clean}/ping`
-  ];
+  return [`${clean}/api/server/ping`, `${clean}/api/server-info/ping`, `${clean}/server-info/ping`, `${clean}/api/ping`, `${clean}/ping`];
 }
 
 function authHeaders(apiKey) {
   return apiKey ? { "x-api-key": apiKey } : undefined;
+}
+
+function withApiKey(url, apiKey) {
+  if (!apiKey) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}apiKey=${encodeURIComponent(apiKey)}`;
+}
+
+async function fetchWithApiKeyFallback(url, apiKey, timeoutMs) {
+  let r = await fetchJson(url, { timeoutMs, headers: authHeaders(apiKey) });
+  if (!r.ok && [401, 403].includes(r.status) && apiKey) {
+    r = await fetchJson(withApiKey(url, apiKey), { timeoutMs });
+  }
+  return r;
 }
 
 export async function fetchImmichHealth(base, apiKey, timeoutMs = 3500) {
@@ -43,7 +51,7 @@ export async function fetchImmichHealth(base, apiKey, timeoutMs = 3500) {
 
   let last = { ok: false, status: 0, data: null, url: candidates[0], error: "no response" };
   for (const url of candidates) {
-    const r = await fetchJson(url, { timeoutMs, headers: authHeaders(apiKey) });
+    const r = await fetchWithApiKeyFallback(url, apiKey, timeoutMs);
     if (r.ok) {
       return { ...r, url, note: "connected" };
     }
@@ -68,10 +76,16 @@ export async function fetchImmichStats(base, apiKey, timeoutMs = 2500) {
   }
 
   const apiRoot = /\/api$/i.test(clean) ? clean : `${clean}/api`;
-  const headers = authHeaders(apiKey);
 
-  const versionUrl = `${apiRoot}/server-info/version`;
-  const versionRes = await fetchJson(versionUrl, { timeoutMs, headers });
+  const versionCandidates = [`${apiRoot}/server/version`, `${apiRoot}/server-info/version`];
+  let versionRes = { ok: false, status: 0, data: null };
+  let versionUrl = versionCandidates[0];
+
+  for (const candidate of versionCandidates) {
+    versionUrl = candidate;
+    versionRes = await fetchWithApiKeyFallback(candidate, apiKey, timeoutMs);
+    if (versionRes.ok) break;
+  }
 
   let version = null;
   if (versionRes.ok) {
@@ -83,8 +97,15 @@ export async function fetchImmichStats(base, apiKey, timeoutMs = 2500) {
       null;
   }
 
-  const statsUrl = `${apiRoot}/server-info/statistics`;
-  const statsRes = await fetchJson(statsUrl, { timeoutMs, headers });
+  const statsCandidates = [`${apiRoot}/server/statistics`, `${apiRoot}/server-info/statistics`];
+  let statsRes = { ok: false, status: 0, data: null };
+  let statsUrl = statsCandidates[0];
+
+  for (const candidate of statsCandidates) {
+    statsUrl = candidate;
+    statsRes = await fetchWithApiKeyFallback(candidate, apiKey, timeoutMs);
+    if (statsRes.ok) break;
+  }
 
   const photos = statsRes.ok ? (statsRes.data?.photos ?? statsRes.data?.images ?? null) : null;
   const videos = statsRes.ok ? (statsRes.data?.videos ?? null) : null;
