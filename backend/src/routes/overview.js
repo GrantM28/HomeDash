@@ -4,6 +4,7 @@ import { fetchImmichHealth } from "../utils/immich.js";
 import { fetchGlancesAll } from "../utils/glances.js";
 import { fetchSyncthingHealth } from "../utils/syncthing.js";
 import { fetchTransmissionHealth } from "../utils/transmission.js";
+import { fetchUnraidHealth } from "../utils/unraid.js";
 
 const router = Router();
 
@@ -35,7 +36,8 @@ router.get("/", async (req, res) => {
     jellyfin: { ok: false, note: "JELLYFIN_URL not set" },
     immich: { ok: false, note: "IMMICH_URL not set" },
     transmission: { ok: false, note: "TRANSMISSION_URL not set" },
-    syncthing: { ok: false, note: "SYNCTHING_URL not set" }
+    syncthing: { ok: false, note: "SYNCTHING_URL not set" },
+    unraid: { ok: false, note: "UNRAID_URL not set" }
   };
 
   const glancesBase = process.env.GLANCES_URL;
@@ -82,6 +84,15 @@ router.get("/", async (req, res) => {
     const r = await fetchSyncthingHealth(syncthingBase, syncthingApiKey, 2000);
     services.syncthing = r.ok
       ? { ok: true, note: r.note }
+      : { ok: false, note: offlineNote(r) };
+  }
+
+  const unraidBase = process.env.UNRAID_URL;
+  const unraidApiKey = process.env.UNRAID_API_KEY;
+  if (unraidBase) {
+    const r = await fetchUnraidHealth(unraidBase, unraidApiKey, 2500);
+    services.unraid = r.ok
+      ? { ok: true, note: r.note ?? "connected" }
       : { ok: false, note: offlineNote(r) };
   }
 

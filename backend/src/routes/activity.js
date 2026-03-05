@@ -3,6 +3,7 @@ import { fetchJellyfinStats } from "../utils/jellyfin.js";
 import { fetchImmichStats } from "../utils/immich.js";
 import { fetchTransmissionStats } from "../utils/transmission.js";
 import { fetchSyncthingStats } from "../utils/syncthing.js";
+import { fetchUnraidStats } from "../utils/unraid.js";
 
 const router = Router();
 
@@ -11,7 +12,8 @@ router.get("/", async (req, res) => {
     jellyfin: { sessions: null, playing: null },
     immich: { version: null, photos: null, videos: null },
     transmission: { downKbps: null, upKbps: null, activeTorrents: null, totalTorrents: null, note: "waiting" },
-    syncthing: { connectedPeers: null, totalPeers: null, inSyncBytes: null }
+    syncthing: { connectedPeers: null, totalPeers: null, inSyncBytes: null },
+    unraid: { version: null, uptime: null, arrayState: null, arrayUsedPercent: null, dockerRunning: null, dockerTotal: null }
   };
 
   const jellyfinBase = process.env.JELLYFIN_URL;
@@ -45,6 +47,14 @@ router.get("/", async (req, res) => {
     const r = await fetchSyncthingStats(syncthingBase, process.env.SYNCTHING_API_KEY, 2500);
     if (r.ok) {
       activity.syncthing = r.stats;
+    }
+  }
+
+  const unraidBase = process.env.UNRAID_URL;
+  if (unraidBase) {
+    const r = await fetchUnraidStats(unraidBase, process.env.UNRAID_API_KEY, 3000);
+    if (r.ok) {
+      activity.unraid = r.stats;
     }
   }
 

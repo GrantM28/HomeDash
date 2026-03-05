@@ -7,7 +7,8 @@ const SERVICE_URLS = {
   immich: "http://192.168.1.4:2283",
   glances: "http://192.168.1.4:61208",
   transmission: "http://192.168.1.4:9091",
-  syncthing: "http://192.168.1.4:8384"
+  syncthing: "http://192.168.1.4:8384",
+  unraid: "http://192.168.1.4"
 };
 
 const NAV_ITEMS = [
@@ -65,6 +66,15 @@ function formatKbps(value) {
 
 function formatCount(value) {
   return Number.isFinite(value) ? value.toLocaleString() : "-";
+}
+
+function formatUptime(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "-";
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  if (days > 0) return `${days}d ${hours}h`;
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return `${hours}h ${minutes}m`;
 }
 
 export default function App() {
@@ -192,6 +202,7 @@ export default function App() {
   const immichStats = activity.data?.immich || {};
   const transmissionStats = activity.data?.transmission || {};
   const syncthingStats = activity.data?.syncthing || {};
+  const unraidStats = activity.data?.unraid || {};
 
   return (
     <div className="container">
@@ -292,9 +303,19 @@ export default function App() {
               <div className="muted">{formatCount(immichStats.videos)} videos</div>
             </div>
             <div className="activityItem">
-              <div className="activityLabel">Activity Notes</div>
-              <div className="activityValue">{transmissionStats.note || "ok"}</div>
-              <div className="muted">Transmission detail</div>
+              <div className="activityLabel">Unraid Array</div>
+              <div className="activityValue">{unraidStats.arrayState || "-"}</div>
+              <div className="muted">used: {Number.isFinite(unraidStats.arrayUsedPercent) ? `${unraidStats.arrayUsedPercent}%` : "-"}</div>
+            </div>
+            <div className="activityItem">
+              <div className="activityLabel">Unraid Docker</div>
+              <div className="activityValue">{formatCount(unraidStats.dockerRunning)} / {formatCount(unraidStats.dockerTotal)}</div>
+              <div className="muted">running / total</div>
+            </div>
+            <div className="activityItem">
+              <div className="activityLabel">Unraid Uptime</div>
+              <div className="activityValue">{formatUptime(unraidStats.uptime)}</div>
+              <div className="muted">version: {unraidStats.version || "-"}</div>
             </div>
           </div>
         </section>
