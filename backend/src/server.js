@@ -4,6 +4,7 @@ import cors from "cors";
 import healthRouter from "./routes/health.js";
 import overviewRouter from "./routes/overview.js";
 import glancesRouter from "./routes/glances.js";
+import activityRouter from "./routes/activity.js";
 
 const app = express();
 
@@ -17,13 +18,14 @@ app.get("/", (req, res) => {
   res.json({
     name: "homelab-dashboard-backend",
     ok: true,
-    endpoints: ["/api/health", "/api/overview"]
+    endpoints: ["/api/health", "/api/overview", "/api/glances/summary", "/api/activity"]
   });
 });
 
 app.use("/api/health", healthRouter);
 app.use("/api/overview", overviewRouter);
 app.use("/api/glances", glancesRouter);
+app.use("/api/activity", activityRouter);
 
 // Basic error handler
 app.use((err, req, res, next) => {

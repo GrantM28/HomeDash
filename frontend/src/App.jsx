@@ -57,10 +57,21 @@ function hasStatusChange(prevServices = {}, nextServices = {}) {
   return false;
 }
 
+function formatKbps(value) {
+  if (!Number.isFinite(value)) return "-";
+  if (value >= 1024) return `${(value / 1024).toFixed(2)} MB/s`;
+  return `${value.toFixed(1)} KB/s`;
+}
+
+function formatCount(value) {
+  return Number.isFinite(value) ? value.toLocaleString() : "-";
+}
+
 export default function App() {
   const [health, setHealth] = useState({ loading: true });
   const [overview, setOverview] = useState({ loading: true, data: { services: {} }, ok: false });
   const [glances, setGlances] = useState({ loading: true });
+  const [activity, setActivity] = useState({ loading: true, data: null, updatedAt: null });
   const [now, setNow] = useState(new Date());
   const [activeNav, setActiveNav] = useState("dashboard");
 
@@ -119,6 +130,19 @@ export default function App() {
     }
   }
 
+  async function refreshActivity(initial = false) {
+    if (initial) {
+      setActivity((prev) => ({ ...prev, loading: true }));
+    }
+
+    try {
+      const a = await fetch(`${API_BASE}/api/activity`).then((r) => r.json());
+      setActivity({ loading: false, data: a.activity, updatedAt: a.updatedAt, ok: !!a.ok });
+    } catch (e) {
+      setActivity({ loading: false, ok: false, error: String(e), data: null, updatedAt: null });
+    }
+  }
+
   function handleNav(item) {
     setActiveNav(item.id);
 
@@ -139,15 +163,18 @@ export default function App() {
     refreshHealth(true);
     refreshOverview(true);
     refreshGlances(true);
+    refreshActivity(true);
 
     const healthTimer = setInterval(() => refreshHealth(false), 30000);
-    const overviewTimer = setInterval(() => refreshOverview(false), 10000);
-    const glancesTimer = setInterval(() => refreshGlances(false), 5000);
+    const overviewTimer = setInterval(() => refreshOverview(false), 5000);
+    const glancesTimer = setInterval(() => refreshGlances(false), 1000);
+    const activityTimer = setInterval(() => refreshActivity(false), 3000);
 
     return () => {
       clearInterval(healthTimer);
       clearInterval(overviewTimer);
       clearInterval(glancesTimer);
+      clearInterval(activityTimer);
     };
   }, []);
 
@@ -160,6 +187,11 @@ export default function App() {
   const total = Object.keys(services).length;
   const up = Object.values(services).filter((s) => s.ok).length;
   const down = total - up;
+
+  const jellyfinStats = activity.data?.jellyfin || {};
+  const immichStats = activity.data?.immich || {};
+  const transmissionStats = activity.data?.transmission || {};
+  const syncthingStats = activity.data?.syncthing || {};
 
   return (
     <div className="container">
@@ -225,6 +257,47 @@ export default function App() {
             value={glances.ok ? `${glances.data?.disk?.percent ?? "?"}%` : glances.loading ? "..." : "-"}
           />
         </div>
+
+        <section className="bigCard activityPanel" id="activity-panel">
+          <div className="cardTitle">
+            <div>Live Activity</div>
+            <div className="muted">
+              Updated: {activity.updatedAt ? new Date(activity.updatedAt).toLocaleTimeString() : "-"}
+            </div>
+          </div>
+          <div className="activityGrid">
+            <div className="activityItem">
+              <div className="activityLabel">Jellyfin Streams</div>
+              <div className="activityValue">{formatCount(jellyfinStats.playing)} / {formatCount(jellyfinStats.sessions)}</div>
+              <div className="muted">playing / sessions</div>
+            </div>
+            <div className="activityItem">
+              <div className="activityLabel">Transmission Speed</div>
+              <div className="activityValue">{formatKbps(transmissionStats.downKbps)} ?</div>
+              <div className="muted">{formatKbps(transmissionStats.upKbps)} ?</div>
+            </div>
+            <div className="activityItem">
+              <div className="activityLabel">Active Torrents</div>
+              <div className="activityValue">{formatCount(transmissionStats.activeTorrents)}</div>
+              <div className="muted">of {formatCount(transmissionStats.totalTorrents)} total</div>
+            </div>
+            <div className="activityItem">
+              <div className="activityLabel">Syncthing Peers</div>
+              <div className="activityValue">{formatCount(syncthingStats.connectedPeers)} / {formatCount(syncthingStats.totalPeers)}</div>
+              <div className="muted">connected / configured</div>
+            </div>
+            <div className="activityItem">
+              <div className="activityLabel">Immich Library</div>
+              <div className="activityValue">{formatCount(immichStats.photos)} photos</div>
+              <div className="muted">{formatCount(immichStats.videos)} videos</div>
+            </div>
+            <div className="activityItem">
+              <div className="activityLabel">Immich Version</div>
+              <div className="activityValue">{immichStats.version || "-"}</div>
+              <div className="muted">server build</div>
+            </div>
+          </div>
+        </section>
 
         <div className="grid">
           <section className="bigCard" id="overview-panel">

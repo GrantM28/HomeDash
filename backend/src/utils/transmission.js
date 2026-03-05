@@ -10,41 +10,108 @@ function buildTransmissionRpcUrl(base) {
   return `${clean}/transmission/rpc`;
 }
 
-export async function fetchTransmissionHealth(base, timeoutMs = 2000) {
-  const url = buildTransmissionRpcUrl(base);
-  if (!url) {
-    return { ok: false, status: 0, data: null, url: null, note: "TRANSMISSION_URL not set" };
-  }
-
+async function transmissionRpc(url, payload, timeoutMs = 2000) {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const res = await fetch(url, {
+    const baseHeaders = { "Content-Type": "application/json" };
+
+    let res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ method: "session-get" }),
+      headers: baseHeaders,
+      body: JSON.stringify(payload),
       signal: controller.signal
     });
 
-    const reachable = [200, 401, 403, 409].includes(res.status);
+    if (res.status === 409) {
+      const sessionId = res.headers.get("X-Transmission-Session-Id");
+      if (sessionId) {
+        res = await fetch(url, {
+          method: "POST",
+          headers: { ...baseHeaders, "X-Transmission-Session-Id": sessionId },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+      }
+    }
+
+    const text = await res.text();
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = { raw: text };
+    }
 
     return {
-      ok: reachable,
+      ok: res.ok,
       status: res.status,
-      data: null,
-      url,
-      note: reachable ? "connected" : `offline (${res.status})`
+      data
     };
   } catch (error) {
     return {
       ok: false,
       status: 0,
       data: null,
-      url,
       error: error?.name === "AbortError" ? "timeout" : String(error)
     };
   } finally {
     clearTimeout(t);
   }
+}
+
+export async function fetchTransmissionHealth(base, timeoutMs = 2000) {
+  const url = buildTransmissionRpcUrl(base);
+  if (!url) {
+    return { ok: false, status: 0, data: null, url: null, note: "TRANSMISSION_URL not set" };
+  }
+
+  const r = await transmissionRpc(url, { method: "session-get" }, timeoutMs);
+
+  const reachable = r.ok || [401, 403, 409].includes(r.status);
+
+  return {
+    ...r,
+    ok: reachable,
+    url,
+    note: reachable ? "connected" : `offline (${r.status || "no response"})`
+  };
+}
+
+export async function fetchTransmissionStats(base, timeoutMs = 2000) {
+  const url = buildTransmissionRpcUrl(base);
+  if (!url) {
+    return {
+      ok: false,
+      status: 0,
+      url: null,
+      stats: { downKbps: null, upKbps: null, activeTorrents: null, totalTorrents: null }
+    };
+  }
+
+  const statsRes = await transmissionRpc(url, { method: "session-stats" }, timeoutMs);
+
+  if (!statsRes.ok) {
+    return {
+      ...statsRes,
+      url,
+      stats: { downKbps: null, upKbps: null, activeTorrents: null, totalTorrents: null }
+    };
+  }
+
+  const args = statsRes.data?.arguments || {};
+  const downKbps = Number.isFinite(Number(args.downloadSpeed)) ? Math.round((Number(args.downloadSpeed) / 1024) * 10) / 10 : null;
+  const upKbps = Number.isFinite(Number(args.uploadSpeed)) ? Math.round((Number(args.uploadSpeed) / 1024) * 10) / 10 : null;
+
+  return {
+    ...statsRes,
+    url,
+    stats: {
+      downKbps,
+      upKbps,
+      activeTorrents: args.activeTorrentCount ?? null,
+      totalTorrents: args.torrentCount ?? null
+    }
+  };
 }

@@ -5,6 +5,10 @@ function buildSyncthingBase(base) {
   return base.replace(/\/$/, "");
 }
 
+function authHeaders(apiKey) {
+  return apiKey ? { "X-API-Key": apiKey } : undefined;
+}
+
 export async function fetchSyncthingHealth(base, apiKey, timeoutMs = 2000) {
   const clean = buildSyncthingBase(base);
   if (!clean) {
@@ -18,12 +22,54 @@ export async function fetchSyncthingHealth(base, apiKey, timeoutMs = 2000) {
   }
 
   const pingUrl = `${clean}/rest/system/ping`;
-  const headers = apiKey ? { "X-API-Key": apiKey } : undefined;
-  const ping = await fetchJson(pingUrl, { timeoutMs, headers });
+  const ping = await fetchJson(pingUrl, { timeoutMs, headers: authHeaders(apiKey) });
 
   if (ping.ok) {
     return { ...ping, url: pingUrl, note: "connected" };
   }
 
   return { ...ping, url: pingUrl };
+}
+
+export async function fetchSyncthingStats(base, apiKey, timeoutMs = 2000) {
+  const clean = buildSyncthingBase(base);
+  if (!clean) {
+    return {
+      ok: false,
+      status: 0,
+      url: null,
+      stats: { connectedPeers: null, totalPeers: null, inSyncBytes: null }
+    };
+  }
+
+  const headers = authHeaders(apiKey);
+
+  const connectionsUrl = `${clean}/rest/system/connections`;
+  const connectionsRes = await fetchJson(connectionsUrl, { timeoutMs, headers });
+
+  let connectedPeers = null;
+  let totalPeers = null;
+  let inSyncBytes = null;
+
+  if (connectionsRes.ok) {
+    const connections = connectionsRes.data?.connections || {};
+    const ids = Object.keys(connections);
+    totalPeers = ids.length;
+    connectedPeers = ids.filter((id) => !!connections[id]?.connected).length;
+    inSyncBytes = ids.reduce((sum, id) => {
+      const value = Number(connections[id]?.inBytesTotal ?? 0);
+      return Number.isFinite(value) ? sum + value : sum;
+    }, 0);
+  }
+
+  return {
+    ok: connectionsRes.ok,
+    status: connectionsRes.status,
+    url: connectionsUrl,
+    stats: {
+      connectedPeers,
+      totalPeers,
+      inSyncBytes
+    }
+  };
 }
