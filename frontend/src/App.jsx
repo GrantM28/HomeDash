@@ -32,7 +32,7 @@ function ServiceCard({ name, info }) {
   const ok = info && info.ok;
   const url = SERVICE_URLS[name] || "#";
   return (
-    <section className="serviceCard">
+    <section className={`serviceCard ${ok ? "isUp" : "isDown"}`}>
       <div className="serviceHead">
         <div className="serviceName">{name}</div>
         <div className={`badge ${ok ? "good" : "bad"}`}>{ok ? "UP" : "DOWN"}</div>
@@ -141,8 +141,8 @@ export default function App() {
     refreshGlances(true);
 
     const healthTimer = setInterval(() => refreshHealth(false), 30000);
-    const overviewTimer = setInterval(() => refreshOverview(false), 5000);
-    const glancesTimer = setInterval(() => refreshGlances(false), 1000);
+    const overviewTimer = setInterval(() => refreshOverview(false), 10000);
+    const glancesTimer = setInterval(() => refreshGlances(false), 5000);
 
     return () => {
       clearInterval(healthTimer);
@@ -164,7 +164,10 @@ export default function App() {
   return (
     <div className="container">
       <aside className="sidebar">
-        <div className="brand">Homelab Dashboard</div>
+        <div className="brandWrap">
+          <div className="brandDot" />
+          <div className="brand">Homelab Command</div>
+        </div>
 
         <div className="nav">
           {NAV_ITEMS.map((item) => (
@@ -179,18 +182,22 @@ export default function App() {
           ))}
         </div>
 
-        <div style={{ marginTop: 16 }} className="small">
-          API Base: <span style={{ color: "#cfe0ff" }}>{API_BASE}</span>
+        <div style={{ marginTop: 16 }} className="small sidebarMeta">
+          API Base: <span className="apiValue">{API_BASE}</span>
         </div>
       </aside>
 
       <main className="main" id="dashboard-top">
         <div className="header">
           <div>
-            <h1 className="h1">Dashboard</h1>
-            <div className="small">Live metrics + smart status updates</div>
+            <h1 className="h1">Operations Dashboard</h1>
+            <div className="small">Live telemetry and event-based service status</div>
           </div>
           <div className="headerRight">
+            <div className="liveBadge">
+              <span className="liveDot" />
+              LIVE
+            </div>
             <div className="clock">{now.toLocaleString()}</div>
           </div>
         </div>
@@ -205,7 +212,6 @@ export default function App() {
             value={health.data?.time ? new Date(health.data.time).toLocaleTimeString() : "-"}
             small
           />
-
           <StatTile
             label="CPU"
             value={glances.ok ? `${glances.data?.cpu?.percent ?? "?"}%` : glances.loading ? "..." : "-"}
