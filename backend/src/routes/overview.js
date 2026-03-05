@@ -7,6 +7,21 @@ import { fetchTransmissionHealth } from "../utils/transmission.js";
 
 const router = Router();
 
+function offlineNote(result) {
+  if (result?.status) {
+    return `offline (${result.status})`;
+  }
+
+  if (result?.error) {
+    if (String(result.error).toLowerCase().includes("timeout")) {
+      return "offline (timeout)";
+    }
+    return "offline (unreachable)";
+  }
+
+  return "offline (no response)";
+}
+
 router.get("/", async (req, res) => {
   const services = {
     glances: { ok: false, note: "GLANCES_URL not set" },
@@ -21,7 +36,7 @@ router.get("/", async (req, res) => {
     const r = await fetchGlancesAll(glancesBase, 2000);
     services.glances = r.ok
       ? { ok: true, note: "connected" }
-      : { ok: false, note: `offline (${r.status || "no response"})` };
+      : { ok: false, note: offlineNote(r) };
   }
 
   const jellyfinBase = process.env.JELLYFIN_URL;
@@ -30,16 +45,16 @@ router.get("/", async (req, res) => {
     const r = await fetchJellyfinHealth(jellyfinBase, jellyfinApiKey, 2000);
     services.jellyfin = r.ok
       ? { ok: true, note: r.note }
-      : { ok: false, note: `offline (${r.status || "no response"})` };
+      : { ok: false, note: offlineNote(r) };
   }
 
   const immichBase = process.env.IMMICH_URL;
   const immichApiKey = process.env.IMMICH_API_KEY;
   if (immichBase) {
-    const r = await fetchImmichHealth(immichBase, immichApiKey, 2000);
+    const r = await fetchImmichHealth(immichBase, immichApiKey, 3500);
     services.immich = r.ok
       ? { ok: true, note: r.note }
-      : { ok: false, note: `offline (${r.status || "no response"})` };
+      : { ok: false, note: offlineNote(r) };
   }
 
   const transmissionBase = process.env.TRANSMISSION_URL;
@@ -51,7 +66,7 @@ router.get("/", async (req, res) => {
     });
     services.transmission = r.ok
       ? { ok: true, note: r.note }
-      : { ok: false, note: `offline (${r.status || "no response"})` };
+      : { ok: false, note: offlineNote(r) };
   }
 
   const syncthingBase = process.env.SYNCTHING_URL;
@@ -60,7 +75,7 @@ router.get("/", async (req, res) => {
     const r = await fetchSyncthingHealth(syncthingBase, syncthingApiKey, 2000);
     services.syncthing = r.ok
       ? { ok: true, note: r.note }
-      : { ok: false, note: `offline (${r.status || "no response"})` };
+      : { ok: false, note: offlineNote(r) };
   }
 
   res.json({ ok: true, services });

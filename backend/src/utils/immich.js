@@ -1,42 +1,62 @@
 import { fetchJson } from "./fetchJson.js";
 
-function buildImmichPingUrl(base) {
-  if (!base) return null;
-
-  const clean = base.replace(/\/$/, "");
-
-  if (/\/api\/server-info\/ping$/i.test(clean)) {
-    return clean;
-  }
-
-  return `${clean}/api/server-info/ping`;
-}
-
 function buildImmichBase(base) {
   if (!base) return null;
   return base.replace(/\/$/, "");
+}
+
+function buildImmichCandidates(base) {
+  const clean = buildImmichBase(base);
+  if (!clean) return [];
+
+  const isFullPing = /\/api\/server-info\/ping$/i.test(clean) || /\/server-info\/ping$/i.test(clean);
+  if (isFullPing) {
+    return [clean];
+  }
+
+  const hasApiSuffix = /\/api$/i.test(clean);
+  if (hasApiSuffix) {
+    return [
+      `${clean}/server-info/ping`,
+      `${clean}/server-info`,
+      `${clean}/ping`
+    ];
+  }
+
+  return [
+    `${clean}/api/server-info/ping`,
+    `${clean}/server-info/ping`,
+    `${clean}/api/ping`,
+    `${clean}/ping`
+  ];
 }
 
 function authHeaders(apiKey) {
   return apiKey ? { "x-api-key": apiKey } : undefined;
 }
 
-export async function fetchImmichHealth(base, apiKey, timeoutMs = 2000) {
-  const url = buildImmichPingUrl(base);
-  if (!url) {
+export async function fetchImmichHealth(base, apiKey, timeoutMs = 3500) {
+  const candidates = buildImmichCandidates(base);
+  if (!candidates.length) {
     return { ok: false, status: 0, data: null, url: null, note: "IMMICH_URL not set" };
   }
 
-  const r = await fetchJson(url, { timeoutMs, headers: authHeaders(apiKey) });
-
-  if (!r.ok) {
-    return { ...r, url };
+  let last = { ok: false, status: 0, data: null, url: candidates[0], error: "no response" };
+  for (const url of candidates) {
+    const r = await fetchJson(url, { timeoutMs, headers: authHeaders(apiKey) });
+    if (r.ok) {
+      return { ...r, url, note: "connected" };
+    }
+    last = { ...r, url };
+    if ([401, 403].includes(r.status)) {
+      return { ...r, url, ok: true, note: "connected (auth required)" };
+    }
   }
 
-  return { ...r, url, note: "connected" };
+  return last;
 }
 
-export async function fetchImmichStats(base, apiKey, timeoutMs = 2000) {
+export async function fetchImmichStats(base, apiKey, timeoutMs = 2500) {
   const clean = buildImmichBase(base);
   if (!clean) {
     return {
@@ -47,9 +67,10 @@ export async function fetchImmichStats(base, apiKey, timeoutMs = 2000) {
     };
   }
 
+  const apiRoot = /\/api$/i.test(clean) ? clean : `${clean}/api`;
   const headers = authHeaders(apiKey);
 
-  const versionUrl = `${clean}/api/server-info/version`;
+  const versionUrl = `${apiRoot}/server-info/version`;
   const versionRes = await fetchJson(versionUrl, { timeoutMs, headers });
 
   let version = null;
@@ -62,7 +83,7 @@ export async function fetchImmichStats(base, apiKey, timeoutMs = 2000) {
       null;
   }
 
-  const statsUrl = `${clean}/api/server-info/statistics`;
+  const statsUrl = `${apiRoot}/server-info/statistics`;
   const statsRes = await fetchJson(statsUrl, { timeoutMs, headers });
 
   const photos = statsRes.ok ? (statsRes.data?.photos ?? statsRes.data?.images ?? null) : null;
