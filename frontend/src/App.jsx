@@ -10,6 +10,15 @@ const SERVICE_URLS = {
   syncthing: "http://192.168.1.4:8384"
 };
 
+const NAV_ITEMS = [
+  { id: "dashboard", label: "Dashboard", type: "scroll", target: "dashboard-top" },
+  { id: "media", label: "Media", type: "link", url: SERVICE_URLS.jellyfin },
+  { id: "photos", label: "Photos", type: "link", url: SERVICE_URLS.immich },
+  { id: "downloads", label: "Downloads", type: "link", url: SERVICE_URLS.transmission },
+  { id: "sync", label: "Sync", type: "link", url: SERVICE_URLS.syncthing },
+  { id: "settings", label: "Settings", type: "scroll", target: "backend-health" }
+];
+
 function StatTile({ label, value, small }) {
   return (
     <div className="stat">
@@ -38,14 +47,27 @@ function ServiceCard({ name, info }) {
   );
 }
 
+function hasStatusChange(prevServices = {}, nextServices = {}) {
+  const keys = new Set([...Object.keys(prevServices), ...Object.keys(nextServices)]);
+  for (const key of keys) {
+    if (Boolean(prevServices[key]?.ok) !== Boolean(nextServices[key]?.ok)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export default function App() {
   const [health, setHealth] = useState({ loading: true });
-  const [overview, setOverview] = useState({ loading: true });
+  const [overview, setOverview] = useState({ loading: true, data: { services: {} }, ok: false });
+  const [glances, setGlances] = useState({ loading: true });
   const [now, setNow] = useState(new Date());
+  const [activeNav, setActiveNav] = useState("dashboard");
 
-  async function load() {
-    setHealth({ loading: true });
-    setOverview({ loading: true });
+  async function refreshHealth(initial = false) {
+    if (initial) {
+      setHealth((prev) => ({ ...prev, loading: true }));
+    }
 
     try {
       const h = await fetch(`${API_BASE}/api/health`).then((r) => r.json());
@@ -53,12 +75,40 @@ export default function App() {
     } catch (e) {
       setHealth({ loading: false, ok: false, error: String(e) });
     }
+  }
+
+  async function refreshOverview(initial = false) {
+    if (initial) {
+      setOverview((prev) => ({ ...prev, loading: true }));
+    }
 
     try {
       const o = await fetch(`${API_BASE}/api/overview`).then((r) => r.json());
-      setOverview({ loading: false, data: o, ok: !!o.ok });
+      setOverview((prev) => {
+        if (prev.loading) {
+          return { loading: false, data: o, ok: !!o.ok };
+        }
+
+        const changed = hasStatusChange(prev.data?.services, o?.services);
+        if (!changed) {
+          return prev;
+        }
+
+        return { loading: false, data: o, ok: !!o.ok };
+      });
     } catch (e) {
-      setOverview({ loading: false, ok: false, error: String(e) });
+      setOverview((prev) => {
+        if (prev.loading) {
+          return { loading: false, ok: false, error: String(e), data: { services: {} } };
+        }
+        return prev;
+      });
+    }
+  }
+
+  async function refreshGlances(initial = false) {
+    if (initial) {
+      setGlances((prev) => ({ ...prev, loading: true }));
     }
 
     try {
@@ -69,10 +119,36 @@ export default function App() {
     }
   }
 
+  function handleNav(item) {
+    setActiveNav(item.id);
+
+    if (item.type === "scroll") {
+      const el = document.getElementById(item.target);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      return;
+    }
+
+    if (item.type === "link" && item.url) {
+      window.open(item.url, "_blank", "noopener,noreferrer");
+    }
+  }
+
   useEffect(() => {
-    load();
-    const t = setInterval(load, 10000);
-    return () => clearInterval(t);
+    refreshHealth(true);
+    refreshOverview(true);
+    refreshGlances(true);
+
+    const healthTimer = setInterval(() => refreshHealth(false), 30000);
+    const overviewTimer = setInterval(() => refreshOverview(false), 5000);
+    const glancesTimer = setInterval(() => refreshGlances(false), 1000);
+
+    return () => {
+      clearInterval(healthTimer);
+      clearInterval(overviewTimer);
+      clearInterval(glancesTimer);
+    };
   }, []);
 
   useEffect(() => {
@@ -85,21 +161,22 @@ export default function App() {
   const up = Object.values(services).filter((s) => s.ok).length;
   const down = total - up;
 
-  const [glances, setGlances] = useState({ loading: true });
-
   return (
     <div className="container">
       <aside className="sidebar">
         <div className="brand">Homelab Dashboard</div>
 
         <div className="nav">
-          <div className="navItem active">Dashboard</div>
-          <div className="navItem">Media</div>
-          <div className="navItem">Photos</div>
-          <div className="navItem">AI</div>
-          <div className="navItem">Downloads</div>
-          <div className="navItem">Sync</div>
-          <div className="navItem">Settings</div>
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`navItem ${activeNav === item.id ? "active" : ""}`}
+              onClick={() => handleNav(item)}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
 
         <div style={{ marginTop: 16 }} className="small">
@@ -107,11 +184,11 @@ export default function App() {
         </div>
       </aside>
 
-      <main className="main">
+      <main className="main" id="dashboard-top">
         <div className="header">
           <div>
             <h1 className="h1">Dashboard</h1>
-            <div className="small">Auto-refresh: 10s</div>
+            <div className="small">Live metrics + smart status updates</div>
           </div>
           <div className="headerRight">
             <div className="clock">{now.toLocaleString()}</div>
@@ -144,7 +221,7 @@ export default function App() {
         </div>
 
         <div className="grid">
-          <section className="bigCard">
+          <section className="bigCard" id="overview-panel">
             <div className="cardTitle">
               <div>Overview</div>
               <div className={`pill ${overview.loading ? "" : overview.ok ? "good" : "bad"}`}>
@@ -159,7 +236,7 @@ export default function App() {
             </div>
           </section>
 
-          <section className="bigCard">
+          <section className="bigCard" id="backend-health">
             <div className="cardTitle">
               <div>Backend Health</div>
               <div className={`pill ${health.loading ? "" : health.ok ? "good" : "bad"}`}>

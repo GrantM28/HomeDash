@@ -51,6 +51,9 @@ a { color: inherit; text-decoration: none; }
   border-radius: 12px;
   background: rgba(16,24,38,0.6);
   color: var(--muted);
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
 }
 
 .navItem.active {
