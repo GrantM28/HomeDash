@@ -11,8 +11,6 @@ const SERVICE_URLS = {
   ollama: "http://192.168.1.4:11434"
 };
 
-const [glances, setGlances] = useState({ loading: true });
-
 function StatTile({ label, value, small }) {
   return (
     <div className="stat">
@@ -88,6 +86,8 @@ export default function App() {
   const up = Object.values(services).filter(s => s.ok).length;
   const down = total - up;
 
+  const [glances, setGlances] = useState({ loading: true });
+
   return (
     <div className="container">
       <aside className="sidebar">
@@ -125,7 +125,7 @@ export default function App() {
           <StatTile label="Down" value={down} />
           <StatTile label="Backend" value={health.ok ? "OK" : health.loading ? "..." : "DOWN"} small />
           <StatTile label="Last Update" value={health.data?.time ? new Date(health.data.time).toLocaleTimeString() : "-"} small />
-          
+
           <StatTile label="CPU" value={glances.ok ? `${glances.data?.cpu?.percent ?? "?"}%` : glances.loading ? "..." : "—"} />
           <StatTile label="RAM" value={glances.ok ? `${glances.data?.mem?.percent ?? "?"}%` : glances.loading ? "..." : "—"} />
           <StatTile label="Disk" value={glances.ok ? `${glances.data?.disk?.percent ?? "?"}%` : glances.loading ? "..." : "—"} />
