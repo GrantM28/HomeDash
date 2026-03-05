@@ -13,9 +13,16 @@ function offlineNote(result) {
   }
 
   if (result?.error) {
-    if (String(result.error).toLowerCase().includes("timeout")) {
+    const e = String(result.error);
+    if (e.toLowerCase().includes("timeout")) {
       return "offline (timeout)";
     }
+
+    const codeMatch = e.match(/\(([A-Z_]+)\)$/);
+    if (codeMatch && codeMatch[1]) {
+      return `offline (${codeMatch[1]})`;
+    }
+
     return "offline (unreachable)";
   }
 

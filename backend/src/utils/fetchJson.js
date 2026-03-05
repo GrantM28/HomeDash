@@ -21,11 +21,19 @@ export async function fetchJson(url, options = {}) {
 
     return { ok: true, status: res.status, data };
   } catch (error) {
+    const causeCode = error?.cause?.code ? String(error.cause.code) : null;
+    const detail =
+      error?.name === "AbortError"
+        ? "timeout"
+        : causeCode
+          ? `${String(error)} (${causeCode})`
+          : String(error);
+
     return {
       ok: false,
       status: 0,
       data: null,
-      error: error?.name === "AbortError" ? "timeout" : String(error)
+      error: detail
     };
   } finally {
     clearTimeout(t);
