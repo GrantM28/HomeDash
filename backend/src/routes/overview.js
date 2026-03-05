@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { fetchJson } from "../utils/fetchJson.js";
+import { fetchGlancesAll } from "../utils/glances.js";
 
 const router = Router();
 
@@ -15,11 +15,10 @@ router.get("/", async (req, res) => {
 
   const glancesBase = process.env.GLANCES_URL;
   if (glancesBase) {
-    const url = `${glancesBase.replace(/\/$/, "")}/api/3/all`;
-    const r = await fetchJson(url, { timeoutMs: 2000 });
+    const r = await fetchGlancesAll(glancesBase, 2000);
     services.glances = r.ok
       ? { ok: true, note: "connected" }
-      : { ok: false, note: `offline (${r.status})` };
+      : { ok: false, note: `offline (${r.status || "no response"})` };
   }
 
   res.json({ ok: true, services });

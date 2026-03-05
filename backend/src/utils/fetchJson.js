@@ -20,6 +20,13 @@ export async function fetchJson(url, options = {}) {
     }
 
     return { ok: true, status: res.status, data };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      data: null,
+      error: error?.name === "AbortError" ? "timeout" : String(error)
+    };
   } finally {
     clearTimeout(t);
   }
