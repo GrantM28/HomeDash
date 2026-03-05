@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from "react";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://192.168.1.4:3040";
 
 const SERVICE_URLS = {
-  jellyfin: "http://localhost:8096",
-  immich: "http://localhost:2283",
-  glances: "http://localhost:61208",
-  transmission: "http://localhost:9091",
-  syncthing: "http://localhost:8384",
-  ollama: "http://localhost:11434"
+  jellyfin: "http://192.168.1.4:8096",
+  immich: "http://192.168.1.4:2283",
+  glances: "http://192.168.1.4:61208",
+  transmission: "http://192.168.1.4:9091",
+  syncthing: "http://192.168.1.4:8384",
+  ollama: "http://192.168.1.4:11434"
 };
+
+const [glances, setGlances] = useState({ loading: true });
 
 function StatTile({ label, value, small }) {
   return (
@@ -60,6 +62,13 @@ export default function App() {
       setOverview({ loading: false, data: o, ok: !!o.ok });
     } catch (e) {
       setOverview({ loading: false, ok: false, error: String(e) });
+    }
+
+    try {
+        const g = await fetch(`${API_BASE}/api/glances/summary`).then(r => r.json());
+        setGlances({ loading: false, data: g, ok: !!g.ok });
+    } catch (e) {
+        setGlances({ loading: false, ok: false, error: String(e) });
     }
   }
 
@@ -116,6 +125,10 @@ export default function App() {
           <StatTile label="Down" value={down} />
           <StatTile label="Backend" value={health.ok ? "OK" : health.loading ? "..." : "DOWN"} small />
           <StatTile label="Last Update" value={health.data?.time ? new Date(health.data.time).toLocaleTimeString() : "-"} small />
+          
+          <StatTile label="CPU" value={glances.ok ? `${glances.data?.cpu?.percent ?? "?"}%` : glances.loading ? "..." : "—"} />
+          <StatTile label="RAM" value={glances.ok ? `${glances.data?.mem?.percent ?? "?"}%` : glances.loading ? "..." : "—"} />
+          <StatTile label="Disk" value={glances.ok ? `${glances.data?.disk?.percent ?? "?"}%` : glances.loading ? "..." : "—"} />
         </div>
 
         <div className="grid">

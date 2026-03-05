@@ -3,6 +3,7 @@ import cors from "cors";
 
 import healthRouter from "./routes/health.js";
 import overviewRouter from "./routes/overview.js";
+import glancesRouter from "./routes/glances.js";
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.get("/", (req, res) => {
 
 app.use("/api/health", healthRouter);
 app.use("/api/overview", overviewRouter);
+app.use("/api/glances", glancesRouter);
 
 // Basic error handler
 app.use((err, req, res, next) => {
