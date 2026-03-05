@@ -2,9 +2,47 @@ import React, { useEffect, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001";
 
+const SERVICE_URLS = {
+  jellyfin: "http://localhost:8096",
+  immich: "http://localhost:2283",
+  glances: "http://localhost:61208",
+  transmission: "http://localhost:9091",
+  syncthing: "http://localhost:8384",
+  ollama: "http://localhost:11434"
+};
+
+function StatTile({ label, value, small }) {
+  return (
+    <div className="stat">
+      <div className="statLabel">{label}</div>
+      <div className={`statValue ${small ? "small" : ""}`}>{value}</div>
+    </div>
+  );
+}
+
+function ServiceCard({ name, info }) {
+  const ok = info && info.ok;
+  const url = SERVICE_URLS[name] || "#";
+  return (
+    <section className="serviceCard">
+      <div className="serviceHead">
+        <div className="serviceName">{name}</div>
+        <div className={`badge ${ok ? "good" : "bad"}`}>{ok ? "UP" : "DOWN"}</div>
+      </div>
+      <div className="serviceBody">
+        <div className="note">{info && info.note ? info.note : "No details"}</div>
+        <div className="links">
+          <a href={url} target="_blank" rel="noreferrer">Open</a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function App() {
   const [health, setHealth] = useState({ loading: true });
   const [overview, setOverview] = useState({ loading: true });
+  const [now, setNow] = useState(new Date());
 
   async function load() {
     setHealth({ loading: true });
@@ -31,6 +69,16 @@ export default function App() {
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => {
+    const i = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(i);
+  }, []);
+
+  const services = overview.data?.services || {};
+  const total = Object.keys(services).length;
+  const up = Object.values(services).filter(s => s.ok).length;
+  const down = total - up;
+
   return (
     <div className="container">
       <aside className="sidebar">
@@ -53,35 +101,56 @@ export default function App() {
 
       <main className="main">
         <div className="header">
-          <h1 className="h1">Dashboard</h1>
-          <div className="small">Auto-refresh: 10s</div>
+          <div>
+            <h1 className="h1">Dashboard</h1>
+            <div className="small">Auto-refresh: 10s</div>
+          </div>
+          <div className="headerRight">
+            <div className="clock">{now.toLocaleString()}</div>
+          </div>
+        </div>
+
+        <div className="summaryRow">
+          <StatTile label="Services" value={total} />
+          <StatTile label="Up" value={up} />
+          <StatTile label="Down" value={down} />
+          <StatTile label="Backend" value={health.ok ? "OK" : health.loading ? "..." : "DOWN"} small />
+          <StatTile label="Last Update" value={health.data?.time ? new Date(health.data.time).toLocaleTimeString() : "-"} small />
         </div>
 
         <div className="grid">
-          <Card title="Backend Health" ok={health.ok} loading={health.loading}>
-            <pre>{JSON.stringify(health.data ?? health.error ?? null, null, 2)}</pre>
-          </Card>
+          <section className="bigCard">
+            <div className="cardTitle">
+              <div>Overview</div>
+              <div className={`pill ${overview.loading ? "" : overview.ok ? "good" : "bad"}`}>
+                {overview.loading ? "loading" : overview.ok ? "ok" : "down"}
+              </div>
+            </div>
+            <div className="services">
+              {Object.keys(services).length === 0 && (
+                <div className="muted">No services discovered</div>
+              )}
+              {Object.entries(services).map(([k, v]) => (
+                <ServiceCard key={k} name={k} info={v} />
+              ))}
+            </div>
+          </section>
 
-          <Card title="Overview (placeholder)" ok={overview.ok} loading={overview.loading}>
-            <pre>{JSON.stringify(overview.data ?? overview.error ?? null, null, 2)}</pre>
-          </Card>
+          <section className="bigCard">
+            <div className="cardTitle">
+              <div>Backend Health</div>
+              <div className={`pill ${health.loading ? "" : health.ok ? "good" : "bad"}`}>
+                {health.loading ? "loading" : health.ok ? "ok" : "down"}
+              </div>
+            </div>
+            <div className="healthBody">
+              <div>Status: <strong>{health.ok ? "OK" : "Unavailable"}</strong></div>
+              <div className="muted">{health.data?.status ?? health.error ?? "No details"}</div>
+              <div className="muted">Updated: {health.data?.time ? new Date(health.data.time).toLocaleString() : "-"}</div>
+            </div>
+          </section>
         </div>
       </main>
     </div>
-  );
-}
-
-function Card({ title, ok, loading, children }) {
-  const pillClass = loading ? "" : ok ? "good" : "bad";
-  const pillText = loading ? "loading" : ok ? "ok" : "down";
-
-  return (
-    <section className="card">
-      <div className="cardTitle">
-        <div>{title}</div>
-        <div className={`pill ${pillClass}`}>{pillText}</div>
-      </div>
-      {children}
-    </section>
   );
 }
