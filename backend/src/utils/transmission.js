@@ -10,12 +10,21 @@ function buildTransmissionRpcUrl(base) {
   return `${clean}/transmission/rpc`;
 }
 
-async function transmissionRpc(url, payload, timeoutMs = 2000) {
+function buildAuthHeader(username, password) {
+  if (!username && !password) return null;
+  const raw = `${username || ""}:${password || ""}`;
+  return `Basic ${Buffer.from(raw).toString("base64")}`;
+}
+
+async function transmissionRpc(url, payload, timeoutMs = 2000, authHeader = null) {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const baseHeaders = { "Content-Type": "application/json" };
+    const baseHeaders = {
+      "Content-Type": "application/json",
+      ...(authHeader ? { Authorization: authHeader } : {})
+    };
 
     let res = await fetch(url, {
       method: "POST",
@@ -61,42 +70,68 @@ async function transmissionRpc(url, payload, timeoutMs = 2000) {
   }
 }
 
-export async function fetchTransmissionHealth(base, timeoutMs = 2000) {
+export async function fetchTransmissionHealth(base, options = {}) {
+  const timeoutMs = options.timeoutMs ?? 2000;
+  const authHeader = buildAuthHeader(options.username, options.password);
   const url = buildTransmissionRpcUrl(base);
   if (!url) {
     return { ok: false, status: 0, data: null, url: null, note: "TRANSMISSION_URL not set" };
   }
 
-  const r = await transmissionRpc(url, { method: "session-get" }, timeoutMs);
+  const r = await transmissionRpc(url, { method: "session-get" }, timeoutMs, authHeader);
 
   const reachable = r.ok || [401, 403, 409].includes(r.status);
+  const authRequired = [401, 403].includes(r.status);
 
   return {
     ...r,
     ok: reachable,
     url,
-    note: reachable ? "connected" : `offline (${r.status || "no response"})`
+    note: authRequired ? "connected (auth required)" : reachable ? "connected" : `offline (${r.status || "no response"})`
   };
 }
 
-export async function fetchTransmissionStats(base, timeoutMs = 2000) {
+export async function fetchTransmissionStats(base, options = {}) {
+  const timeoutMs = options.timeoutMs ?? 2000;
+  const authHeader = buildAuthHeader(options.username, options.password);
   const url = buildTransmissionRpcUrl(base);
   if (!url) {
     return {
       ok: false,
       status: 0,
       url: null,
-      stats: { downKbps: null, upKbps: null, activeTorrents: null, totalTorrents: null }
+      stats: { downKbps: null, upKbps: null, activeTorrents: null, totalTorrents: null, note: "TRANSMISSION_URL not set" }
     };
   }
 
-  const statsRes = await transmissionRpc(url, { method: "session-stats" }, timeoutMs);
+  const statsRes = await transmissionRpc(url, { method: "session-stats" }, timeoutMs, authHeader);
+
+  if ([401, 403].includes(statsRes.status)) {
+    return {
+      ...statsRes,
+      ok: true,
+      url,
+      stats: {
+        downKbps: null,
+        upKbps: null,
+        activeTorrents: null,
+        totalTorrents: null,
+        note: "auth required (set TRANSMISSION_USERNAME/PASSWORD)"
+      }
+    };
+  }
 
   if (!statsRes.ok) {
     return {
       ...statsRes,
       url,
-      stats: { downKbps: null, upKbps: null, activeTorrents: null, totalTorrents: null }
+      stats: {
+        downKbps: null,
+        upKbps: null,
+        activeTorrents: null,
+        totalTorrents: null,
+        note: `unavailable (${statsRes.status || "no response"})`
+      }
     };
   }
 
@@ -111,7 +146,8 @@ export async function fetchTransmissionStats(base, timeoutMs = 2000) {
       downKbps,
       upKbps,
       activeTorrents: args.activeTorrentCount ?? null,
-      totalTorrents: args.torrentCount ?? null
+      totalTorrents: args.torrentCount ?? null,
+      note: "ok"
     }
   };
 }

@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { fetchGlancesAll } from "../utils/glances.js";
 import { fetchJellyfinHealth } from "../utils/jellyfin.js";
 import { fetchImmichHealth } from "../utils/immich.js";
-import { fetchTransmissionHealth } from "../utils/transmission.js";
+import { fetchGlancesAll } from "../utils/glances.js";
 import { fetchSyncthingHealth } from "../utils/syncthing.js";
+import { fetchTransmissionHealth } from "../utils/transmission.js";
 
 const router = Router();
 
@@ -44,7 +44,11 @@ router.get("/", async (req, res) => {
 
   const transmissionBase = process.env.TRANSMISSION_URL;
   if (transmissionBase) {
-    const r = await fetchTransmissionHealth(transmissionBase, 2000);
+    const r = await fetchTransmissionHealth(transmissionBase, {
+      timeoutMs: 2000,
+      username: process.env.TRANSMISSION_USERNAME,
+      password: process.env.TRANSMISSION_PASSWORD
+    });
     services.transmission = r.ok
       ? { ok: true, note: r.note }
       : { ok: false, note: `offline (${r.status || "no response"})` };

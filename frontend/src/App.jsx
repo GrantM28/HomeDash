@@ -273,8 +273,8 @@ export default function App() {
             </div>
             <div className="activityItem">
               <div className="activityLabel">Transmission Speed</div>
-              <div className="activityValue">{formatKbps(transmissionStats.downKbps)} ?</div>
-              <div className="muted">{formatKbps(transmissionStats.upKbps)} ?</div>
+              <div className="activityValue">{formatKbps(transmissionStats.downKbps)} down</div>
+              <div className="muted">{formatKbps(transmissionStats.upKbps)} up</div>
             </div>
             <div className="activityItem">
               <div className="activityLabel">Active Torrents</div>
@@ -292,9 +292,9 @@ export default function App() {
               <div className="muted">{formatCount(immichStats.videos)} videos</div>
             </div>
             <div className="activityItem">
-              <div className="activityLabel">Immich Version</div>
-              <div className="activityValue">{immichStats.version || "-"}</div>
-              <div className="muted">server build</div>
+              <div className="activityLabel">Activity Notes</div>
+              <div className="activityValue">{transmissionStats.note || "ok"}</div>
+              <div className="muted">Transmission detail</div>
             </div>
           </div>
         </section>

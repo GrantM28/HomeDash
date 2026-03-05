@@ -10,7 +10,7 @@ router.get("/", async (req, res) => {
   const activity = {
     jellyfin: { sessions: null, playing: null },
     immich: { version: null, photos: null, videos: null },
-    transmission: { downKbps: null, upKbps: null, activeTorrents: null, totalTorrents: null },
+    transmission: { downKbps: null, upKbps: null, activeTorrents: null, totalTorrents: null, note: "waiting" },
     syncthing: { connectedPeers: null, totalPeers: null, inSyncBytes: null }
   };
 
@@ -32,10 +32,12 @@ router.get("/", async (req, res) => {
 
   const transmissionBase = process.env.TRANSMISSION_URL;
   if (transmissionBase) {
-    const r = await fetchTransmissionStats(transmissionBase, 2500);
-    if (r.ok) {
-      activity.transmission = r.stats;
-    }
+    const r = await fetchTransmissionStats(transmissionBase, {
+      timeoutMs: 2500,
+      username: process.env.TRANSMISSION_USERNAME,
+      password: process.env.TRANSMISSION_PASSWORD
+    });
+    activity.transmission = r.stats;
   }
 
   const syncthingBase = process.env.SYNCTHING_URL;
