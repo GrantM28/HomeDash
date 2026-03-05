@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { fetchGlancesAll } from "../utils/glances.js";
 import { fetchJellyfinHealth } from "../utils/jellyfin.js";
+import { fetchImmichHealth } from "../utils/immich.js";
+import { fetchTransmissionHealth } from "../utils/transmission.js";
+import { fetchSyncthingHealth } from "../utils/syncthing.js";
 
 const router = Router();
 
@@ -8,10 +11,9 @@ router.get("/", async (req, res) => {
   const services = {
     glances: { ok: false, note: "GLANCES_URL not set" },
     jellyfin: { ok: false, note: "JELLYFIN_URL not set" },
-    immich: { ok: false, note: "not wired yet" },
-    transmission: { ok: false, note: "not wired yet" },
-    syncthing: { ok: false, note: "not wired yet" },
-    ollama: { ok: false, note: "not wired yet" }
+    immich: { ok: false, note: "IMMICH_URL not set" },
+    transmission: { ok: false, note: "TRANSMISSION_URL not set" },
+    syncthing: { ok: false, note: "SYNCTHING_URL not set" }
   };
 
   const glancesBase = process.env.GLANCES_URL;
@@ -27,6 +29,32 @@ router.get("/", async (req, res) => {
   if (jellyfinBase) {
     const r = await fetchJellyfinHealth(jellyfinBase, jellyfinApiKey, 2000);
     services.jellyfin = r.ok
+      ? { ok: true, note: r.note }
+      : { ok: false, note: `offline (${r.status || "no response"})` };
+  }
+
+  const immichBase = process.env.IMMICH_URL;
+  const immichApiKey = process.env.IMMICH_API_KEY;
+  if (immichBase) {
+    const r = await fetchImmichHealth(immichBase, immichApiKey, 2000);
+    services.immich = r.ok
+      ? { ok: true, note: r.note }
+      : { ok: false, note: `offline (${r.status || "no response"})` };
+  }
+
+  const transmissionBase = process.env.TRANSMISSION_URL;
+  if (transmissionBase) {
+    const r = await fetchTransmissionHealth(transmissionBase, 2000);
+    services.transmission = r.ok
+      ? { ok: true, note: r.note }
+      : { ok: false, note: `offline (${r.status || "no response"})` };
+  }
+
+  const syncthingBase = process.env.SYNCTHING_URL;
+  const syncthingApiKey = process.env.SYNCTHING_API_KEY;
+  if (syncthingBase) {
+    const r = await fetchSyncthingHealth(syncthingBase, syncthingApiKey, 2000);
+    services.syncthing = r.ok
       ? { ok: true, note: r.note }
       : { ok: false, note: `offline (${r.status || "no response"})` };
   }
